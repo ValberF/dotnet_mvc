@@ -75,7 +75,6 @@ namespace MvcMovie.Controllers
                     }
                     if (model.Password == user.Password)
                     {
-                        Console.WriteLine($"LOGOU!");
                         return RedirectToAction("Index", "Home");
                     }
                 }
