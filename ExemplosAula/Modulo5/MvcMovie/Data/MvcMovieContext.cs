@@ -13,9 +13,9 @@ namespace MvcMovie.Data
             : base(options)
         {
         }
-
-        public DbSet<MvcMovie.Models.Movie> Movie { get; set; } = default!;
-
         public DbSet<MvcMovie.Models.User> User { get; set; } = default!;
+        public DbSet<MvcMovie.Models.Movie> Movie { get; set; } = default!;
+        public DbSet<MvcMovie.Models.Studio> Studio { get; set; } = default!;
+        public DbSet<MvcMovie.Models.Artist> Artist { get; set; } = default!;
     }
 }
