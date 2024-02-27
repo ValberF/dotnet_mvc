@@ -1,81 +1,86 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MvcMovie.Data;
-using MvcMovie.Data.Security;
 using MvcMovie.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using Microsoft.Extensions.Configuration;
+using System.Security.Cryptography;
 
-namespace MvcMovie.Controllers;
-public class LoginController : Controller
+namespace MvcMovie.Controllers
 {
-   private readonly MvcMovieContext _context;
-   private readonly IConfiguration _configuration;
-
-    public LoginController(MvcMovieContext context, IConfiguration configuration)
+    public class LoginController : Controller
     {
-        _context = context;
-        _configuration = configuration;
+        private readonly MvcMovieContext _context;
+        private readonly IConfiguration _configuration;
+
+        public LoginController(MvcMovieContext context, IConfiguration configuration)
+        {
+            _context = context;
+            _configuration = configuration;
+        }
+
+        // GET: Login/Index
+        public IActionResult Index()
+        {
+            return View();
+        }
+
+        // POST: Login/Authenticate
+        // To protect from overposting attacks, enable the specific properties you want to bind to.
+        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Login([Bind("Email,Password")] Login user)
+        {
+            if (ModelState.IsValid)
+            {
+                user.Password = HashPassword(user.Password ?? "");
+                var userInDb = await _context.User.FirstOrDefaultAsync(u => u.Email == user.Email && u.Password == user.Password);
+
+                if (userInDb != null)
+                {
+                    // Se o usuário for autenticado com sucesso, gere um token JWT
+                    var token = GenerateJwtToken(userInDb);
+                    return Ok(new { token });
+                }
+            }
+            return Unauthorized();
+        }
+
+        // Método para gerar um token JWT
+        private string GenerateJwtToken(User user)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:SecretKey"]);
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new Claim(ClaimTypes.Email, user.Email)
+                }),
+                Expires = DateTime.UtcNow.AddHours(Convert.ToDouble(_configuration["Jwt:ExpiryInHours"])),
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            return tokenHandler.WriteToken(token);
+        }
+
+        public static string HashPassword(string password)
+        {
+            using (SHA256 sha256Hash = SHA256.Create())
+            {
+                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(password));
+
+                StringBuilder builder = new StringBuilder();
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    builder.Append(bytes[i].ToString("x2"));
+                }
+                return builder.ToString();
+            }
+        }
     }
-
-    // GET: Login/Index
-    public IActionResult Index()
-   {
-      return View();
-   }
-
-   // POST: Login/Authenticate
-   // To protect from overposting attacks, enable the specific properties you want to bind to.
-   // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
-   [HttpPost]
-   [ValidateAntiForgeryToken]
-   public async Task<IActionResult> Login([Bind("Email,Password")] Login user)
-   {
-      // Verifica se o modelo é válido
-      if (ModelState.IsValid)
-      {
-         // Criptografa a senha do usuário
-         user.Password = Utils.HashPassword(user.Password ?? "");
-
-         // Busca o usuário no banco de dados
-         var userInDb = await _context.User.FirstOrDefaultAsync(u => u.Email == user.Email && u.Password == user.Password);
-
-         // Se o usuário existir no banco de dados
-         if (userInDb != null)
-         {
-               // Cria as reivindicações para o token
-               var claims = new[]
-               {
-                  new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-                  new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-               };
-
-               // Cria a chave de segurança
-               var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
-               var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-               // Cria o token
-               var token = new JwtSecurityToken(
-                  issuer: _configuration["Jwt:Issuer"],
-                  audience: _configuration["Jwt:Issuer"],
-                  claims: claims,
-                  expires: DateTime.Now.AddMinutes(30),
-                  signingCredentials: creds
-               );
-
-               // Retorna o token
-               return Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
-         }
-
-         // Se o usuário não existir no banco de dados, retorna Unauthorized
-         return Unauthorized();
-      }
-
-      // Se o modelo não for válido, retorna a visualização de login
-      return View(user);
-   }
-
 }
