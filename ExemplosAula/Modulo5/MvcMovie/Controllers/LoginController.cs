@@ -39,12 +39,16 @@ namespace MvcMovie.Controllers
                 user.Password = HashPassword(user.Password ?? "");
                 var userInDb = await _context.User.FirstOrDefaultAsync(u => u.Email == user.Email && u.Password == user.Password);
 
-                if (userInDb != null)
-                {
-                    // Se o usuário for autenticado com sucesso, gere um token JWT
-                    var token = GenerateJwtToken(userInDb);
-                    return Ok(new { token });
-                }
+               if (userInDb != null)
+               {
+                  // Se o usuário for autenticado com sucesso, gere um token JWT
+                  var token = GenerateJwtToken(userInDb);
+                  HttpContext.Session.SetString("JwtToken", token);
+                  return Ok(new { token });
+               }
+
+
+                
             }
             return Unauthorized();
         }
