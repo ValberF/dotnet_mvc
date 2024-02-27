@@ -6,6 +6,5 @@ public class Studio
     public int Id { get; set; }
     public required string Name { get; set; }
     public required string Country { get; set; }
-    public required string Site { get; set; }
-    public ICollection<Movie>? Movies { get; set; } 
+    public string? Site { get; set; }
 }

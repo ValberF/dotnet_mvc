@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using MvcMovie.Data;
 using MvcMovie.Models;
+using NuGet.Packaging;
 
 namespace MvcMovie.Controllers
 {
@@ -48,8 +49,8 @@ namespace MvcMovie.Controllers
         // GET: Movie/Create
         public IActionResult Create()
         {
-            ViewData["StudioId"] = new SelectList(_context.Set<Studio>(), "Id", "Name");
-            ViewData["Artists"] = new SelectList(_context.Set<Artist>(), "Id", "Name");
+            ViewData["StudioId"] = new SelectList(_context.Studio, "Id", "Name");
+            ViewData["Artists"] = new SelectList(_context.Artist, "Id", "Name");
             return View();
         }
 
@@ -60,23 +61,15 @@ namespace MvcMovie.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,Title,ReleaseDate,Genre,Price,StudioId")] Movie movie, string[] Artists)
         {
-            if (Artists != null && Artists.Any())
-            {
-                var artistIds = Artists.Select(int.Parse).ToList();
-                var selectedArtists = await _context.Artist.Where(a => artistIds.Contains(a.Id)).ToListAsync();
-                movie.Artists = selectedArtists;
-            }
-
             if (ModelState.IsValid)
             {
+                var _artists = await _context.Artist.Where(a => Artists.Contains(a.Id.ToString())).ToListAsync();
+                movie.Artists = _artists;
                 _context.Add(movie);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
-
-            ViewData["StudioId"] = new SelectList(_context.Set<Studio>(), "Id", "Name", movie.StudioId);
-            ViewData["Artists"] = new SelectList(_context.Set<Artist>(), "Id", "Name");
-
+            ViewData["StudioId"] = new SelectList(_context.Studio, "Id", "Name", movie.StudioId);
             return View(movie);
         }
 
@@ -94,7 +87,8 @@ namespace MvcMovie.Controllers
             {
                 return NotFound();
             }
-            ViewData["StudioId"] = new SelectList(_context.Set<Studio>(), "Id", "Id", movie.StudioId);
+            ViewData["StudioId"] = new SelectList(_context.Set<Studio>(), "Id", "Name", movie.StudioId);
+            ViewData["Artists"] = new SelectList(_context.Artist, "Id", "Name", movie.Artists);
             return View(movie);
         }
 
@@ -130,7 +124,8 @@ namespace MvcMovie.Controllers
                 }
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["StudioId"] = new SelectList(_context.Set<Studio>(), "Id", "Id", movie.StudioId);
+            ViewData["StudioId"] = new SelectList(_context.Set<Studio>(), "Id", "Name", movie.StudioId);
+            ViewData["Artists"] = new SelectList(_context.Artist, "Id", "Name", movie.Artists);
             return View(movie);
         }
 
