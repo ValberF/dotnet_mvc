@@ -46,9 +46,7 @@ namespace MvcMovie.Controllers
                   HttpContext.Session.SetString("JwtToken", token);
                   return Ok(new { token });
                }
-
-
-                
+           
             }
             return Unauthorized();
         }
