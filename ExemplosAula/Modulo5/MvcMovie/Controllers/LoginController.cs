@@ -3,15 +3,22 @@ using Microsoft.EntityFrameworkCore;
 using MvcMovie.Data;
 using MvcMovie.Data.Security;
 using MvcMovie.Models;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Microsoft.Extensions.Configuration;
 
 namespace MvcMovie.Controllers;
 public class LoginController : Controller
 {
    private readonly MvcMovieContext _context;
+   private readonly IConfiguration _configuration;
 
-    public LoginController(MvcMovieContext context)
+    public LoginController(MvcMovieContext context, IConfiguration configuration)
     {
         _context = context;
+        _configuration = configuration;
     }
 
     // GET: Login/Index
@@ -31,8 +38,26 @@ public class LoginController : Controller
       {
          user.Password = Utils.HashPassword(user.Password ?? "");
          var userInDb = await _context.User.FirstOrDefaultAsync(u => u.Email == user.Email && u.Password == user.Password);
-         //if (userInDb.Email == user.Email)
-         return RedirectToAction("Index", "Home");
+         if (userInDb != null)
+         {
+            var claims = new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            };
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(_configuration["Jwt:Issuer"],
+              _configuration["Jwt:Issuer"],
+              claims,
+              expires: DateTime.Now.AddMinutes(30),
+              signingCredentials: creds);
+
+            return Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
+         }
+         return Unauthorized();
       }
       return View(user);
    }
