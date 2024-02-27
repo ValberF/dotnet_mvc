@@ -34,31 +34,48 @@ public class LoginController : Controller
    [ValidateAntiForgeryToken]
    public async Task<IActionResult> Login([Bind("Email,Password")] Login user)
    {
+      // Verifica se o modelo é válido
       if (ModelState.IsValid)
       {
+         // Criptografa a senha do usuário
          user.Password = Utils.HashPassword(user.Password ?? "");
+
+         // Busca o usuário no banco de dados
          var userInDb = await _context.User.FirstOrDefaultAsync(u => u.Email == user.Email && u.Password == user.Password);
+
+         // Se o usuário existir no banco de dados
          if (userInDb != null)
          {
-            var claims = new[]
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            };
+               // Cria as reivindicações para o token
+               var claims = new[]
+               {
+                  new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+                  new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+               };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+               // Cria a chave de segurança
+               var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+               var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var token = new JwtSecurityToken(_configuration["Jwt:Issuer"],
-              _configuration["Jwt:Issuer"],
-              claims,
-              expires: DateTime.Now.AddMinutes(30),
-              signingCredentials: creds);
+               // Cria o token
+               var token = new JwtSecurityToken(
+                  issuer: _configuration["Jwt:Issuer"],
+                  audience: _configuration["Jwt:Issuer"],
+                  claims: claims,
+                  expires: DateTime.Now.AddMinutes(30),
+                  signingCredentials: creds
+               );
 
-            return Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
+               // Retorna o token
+               return Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
          }
+
+         // Se o usuário não existir no banco de dados, retorna Unauthorized
          return Unauthorized();
       }
+
+      // Se o modelo não for válido, retorna a visualização de login
       return View(user);
    }
+
 }
