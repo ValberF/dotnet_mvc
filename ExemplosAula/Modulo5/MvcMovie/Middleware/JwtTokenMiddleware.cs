@@ -1,14 +1,14 @@
 namespace MvcMovie.Middleware;
-public class JwtMiddleware
+public class JwtTokenMiddleware
 {
     private readonly RequestDelegate _next;
 
-    public JwtMiddleware(RequestDelegate next)
+    public JwtTokenMiddleware(RequestDelegate next)
     {
         _next = next;
     }
 
-    public async Task Invoke(HttpContext context)
+    public async Task InvokeAsync(HttpContext context)
     {
         var token = context.Session.GetString("JwtToken");
 
