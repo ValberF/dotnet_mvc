@@ -1,88 +1,104 @@
+using System;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
 using MvcMovie.Data;
 using MvcMovie.Models;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using System.Security.Cryptography;
 
 namespace MvcMovie.Controllers
 {
-    public class LoginController : Controller
+   public class LoginController : Controller
+   {
+      private readonly MvcMovieContext _context;
+      private readonly IConfiguration _configuration;
+
+      public LoginController(MvcMovieContext context, IConfiguration configuration)
+      {
+         _context = context;
+         _configuration = configuration;
+      }
+
+      // GET: Login/Index
+      public IActionResult Index()
+      {
+         return View();
+      }
+
+      // POST: Login/Authenticate
+      [HttpPost]
+      [ValidateAntiForgeryToken]
+      public async Task<IActionResult> Login([Bind("Email,Password")] Login user)
+      {
+         if (ModelState.IsValid)
+         {
+            user.Password = HashPassword(user.Password ?? "");
+            var userInDb = await _context.User.FirstOrDefaultAsync(u => u.Email == user.Email && u.Password == user.Password);
+
+            if (userInDb != null)
+            {
+               // Se o usuário for autenticado com sucesso, gere um token JWT
+               var token = GenerateJwtToken(userInDb.Email, "user");
+               HttpContext.Session.SetString("JwtToken", token);
+               return Ok(new { token });
+            }
+         }
+         return Unauthorized();
+      }
+
+      // Método para gerar um token JWT
+
+    public string GenerateJwtToken(string email, string role)
     {
-        private readonly MvcMovieContext _context;
-        private readonly IConfiguration _configuration;
+        var issuer = _configuration["Jwt:Issuer"];
+        var audience = _configuration["Jwt:Audience"];
+        var key = _configuration["Jwt:Key"];
+        //cria uma chave utilizando criptografia simétrica
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        //cria as credenciais do token
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-        public LoginController(MvcMovieContext context, IConfiguration configuration)
+        var claims = new[]
         {
-            _context = context;
-            _configuration = configuration;
-        }
+         new Claim("userName", email),
+         new Claim(ClaimTypes.Role, role)
+      };
 
-        // GET: Login/Index
-        public IActionResult Index()
-        {
-            return View();
-        }
+        var token = new JwtSecurityToken( //cria o token
+           issuer: issuer, //emissor do token
+           audience: audience, //destinatário do token
+           claims: claims, //informações do usuário
+           expires: DateTime.Now.AddMinutes(30), //tempo de expiração do token
+           signingCredentials: credentials); //credenciais do token
 
-        // POST: Login/Authenticate
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Login([Bind("Email,Password")] Login user)
-        {
-            if (ModelState.IsValid)
-            {
-                user.Password = HashPassword(user.Password ?? "");
-                var userInDb = await _context.User.FirstOrDefaultAsync(u => u.Email == user.Email && u.Password == user.Password);
 
-               if (userInDb != null)
-               {
-                  // Se o usuário for autenticado com sucesso, gere um token JWT
-                  var token = GenerateJwtToken(userInDb);
-                  HttpContext.Session.SetString("JwtToken", token);
-                  return Ok(new { token });
-               }
-           
-            }
-            return Unauthorized();
-        }
+        var tokenHandler = new JwtSecurityTokenHandler(); //cria um manipulador de token
 
-        // Método para gerar um token JWT
-        private string GenerateJwtToken(User user)
-        {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:SecretKey"]);
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                    new Claim(ClaimTypes.Email, user.Email)
-                }),
-                Expires = DateTime.UtcNow.AddHours(Convert.ToDouble(_configuration["Jwt:ExpiryInHours"])),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-            };
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token);
-        }
+        var stringToken = tokenHandler.WriteToken(token);
 
-        public static string HashPassword(string password)
-        {
-            using (SHA256 sha256Hash = SHA256.Create())
-            {
-                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(password));
-
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    builder.Append(bytes[i].ToString("x2"));
-                }
-                return builder.ToString();
-            }
-        }
+        return stringToken;
     }
+
+      public static string HashPassword(string password)
+      {
+         using (SHA256 sha256Hash = SHA256.Create())
+         {
+            byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(password));
+
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < bytes.Length; i++)
+            {
+               builder.Append(bytes[i].ToString("x2"));
+            }
+            return builder.ToString();
+         }
+      }
+   }
 }
