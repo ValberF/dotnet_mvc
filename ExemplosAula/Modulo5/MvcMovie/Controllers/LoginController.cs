@@ -35,9 +35,27 @@ public class LoginController : Controller
 
          if (userInDb != null)
          {
-            var token = _utils.GenerateJwtToken(userInDb.Email, "user");
-            HttpContext.Session.SetString("JwtToken", token);
-            return RedirectToAction(nameof(Index));
+            if (userInDb.Email == "kayquepiton@gmail.com")
+            {
+               var token = _utils.GenerateJwtToken(userInDb.Email, "admin");
+               Response.Cookies.Append("token", token, new CookieOptions
+               {
+                  HttpOnly = true,
+                  Expires = DateTime.Now.AddMinutes(60)
+               });
+               return RedirectToAction("Index", "Home");
+            }
+            else
+            {
+               var token = _utils.GenerateJwtToken(userInDb.Email, "user");
+               Response.Cookies.Append("token", token, new CookieOptions
+               {
+                  HttpOnly = true,
+                  Expires = DateTime.Now.AddMinutes(60)
+               });
+               return RedirectToAction("Index", "Home");
+            }
+
          }
       }
       return Unauthorized();
